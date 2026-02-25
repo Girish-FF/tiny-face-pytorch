@@ -49,7 +49,7 @@ def onnx_export(params):
     model.to(device)
 
     # Load weights
-    state_dict = torch.load(params.weights, map_location=device, weights_only=True)
+    state_dict = torch.load(params.weights, map_location=device) #, weights_only=True
     model.load_state_dict(state_dict)
     print("Model loaded successfully!")
 
@@ -58,7 +58,7 @@ def onnx_export(params):
 
     # Generate output filename
     fname = os.path.splitext(os.path.basename(params.weights))[0]
-    onnx_model = f'{fname}.onnx'
+    onnx_model = f'{fname}_op13.onnx'
     print(f"==> Exporting model to ONNX format at '{onnx_model}'")
 
     # Create dummy input (batch_size=1, channels=3, height=640, width=640)
@@ -70,7 +70,7 @@ def onnx_export(params):
         x,                    # Model input
         onnx_model,          # Output file path
         export_params=True,   # Store the trained parameter weights inside the model file
-        opset_version=11,    # ONNX version to export the model to
+        opset_version=13,    # ONNX version to export the model to
         do_constant_folding=True,  # Whether to execute constant folding for optimization
         input_names=['input'],     # Model's input names
         output_names=['loc', 'conf', 'landmarks'],  # Model's output names

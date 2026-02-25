@@ -1,5 +1,7 @@
 import cv2
 import numpy as np
+import shutil
+from pathlib import Path
 
 
 def draw_detections(original_image, detections, vis_threshold):
@@ -26,7 +28,7 @@ def draw_detections(original_image, detections, vis_threshold):
     # Filter by confidence
     detections = detections[detections[:, 4] >= vis_threshold]
 
-    print(f"#faces: {len(detections)}")
+    # print(f"#faces: {len(detections)}")
 
     # Slice arrays efficiently
     boxes = detections[:, 0:4].astype(np.int32)
@@ -45,3 +47,22 @@ def draw_detections(original_image, detections, vis_threshold):
         # Draw landmarks
         for point, color in zip(landmark, LANDMARK_COLORS):
             cv2.circle(original_image, point, 1, color, 4)
+
+
+def get_output_path(input_path: str, output_dir: str) -> str:
+    input_path = Path(input_path).resolve()
+    output_dir = Path(output_dir).resolve()
+    
+    if not input_path.exists():
+        raise ValueError(f"Input path does not exist: {input_path}")
+
+    if input_path.is_file():
+        relative_parent = input_path.parent.name
+        output_path = output_dir / relative_parent / input_path.name
+    else:
+        relative_path = input_path.relative_to(input_path)
+        output_path = output_dir / relative_path
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    return str(output_path)

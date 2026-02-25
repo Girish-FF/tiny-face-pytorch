@@ -1,11 +1,11 @@
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Union
 
 import torch
 from torch import nn, Tensor
 
 
-def xywh2xyxy(boxes: Tensor | np.ndarray) -> Tensor | np.ndarray:
+def xywh2xyxy(boxes: Union[Tensor, np.ndarray]) -> Union[Tensor, np.ndarray]:
     """Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right."""
     y = boxes.clone() if isinstance(boxes, torch.Tensor) else np.copy(boxes)
     y[..., 0] = boxes[..., 0] - boxes[..., 2] / 2  # top left x
@@ -16,7 +16,7 @@ def xywh2xyxy(boxes: Tensor | np.ndarray) -> Tensor | np.ndarray:
     return y
 
 
-def xyxy2xywh(boxes: Tensor | np.ndarray) -> Tensor | np.ndarray:
+def xyxy2xywh(boxes: Union[Tensor, np.ndarray]) -> Union[Tensor, np.ndarray]:
     """Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] where xy1=top-left, xy2=bottom-right."""
     y = boxes.clone() if isinstance(boxes, torch.Tensor) else np.copy(boxes)
     y[..., 0] = (boxes[..., 0] + boxes[..., 2]) / 2  # x center

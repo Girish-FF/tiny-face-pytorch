@@ -70,7 +70,7 @@ def mobilenet_v1_025(pretrained: bool = True, num_classes: int = 1000):
     state_dict = None
     if pretrained:
         try:
-            state_dict = torch.load("weights/mobilenetv1_025.pretrained", weights_only=True)
+            state_dict = torch.load("weights/mobilenetv1_025.pretrained")
         except:
             print("Could not find pre-trained backbone model!")
             

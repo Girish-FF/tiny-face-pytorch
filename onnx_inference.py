@@ -1,13 +1,15 @@
 import os
 import cv2
+import json
+import time
+import torch
+import argparse
 import numpy as np
 import onnxruntime as ort
-import argparse
-import torch
 
 from layers import PriorBox
 from config import get_config
-from utils.general import draw_detections
+from utils.general import draw_detections, get_output_path
 from utils.box_utils import decode, decode_landmarks, nms
 
 
@@ -76,6 +78,14 @@ def parse_arguments():
         help='Path to the input image'
     )
 
+    # Output Folder Patgh
+    parser.add_argument(
+        '--output-path',
+        type=str,
+        default='output',
+        help='Path to the output_folder'
+    )
+
     return parser.parse_args()
 
 
@@ -100,25 +110,40 @@ class FaceONNXInference:
 
         # Load ONNX model
         self.ort_session = ort.InferenceSession(model_path)
+        print(self.ort_session.get_providers())
         # Config for prior boxes
         self.cfg = get_config(model_name)
 
-    @staticmethod
-    def preprocess_image(image, rgb_mean=(104, 117, 123)):
-        image = np.float32(image)
+    def preprocess_image(self, image):
+        rgb_mean = np.array([104, 117, 123], dtype=np.float32)
+        image = image.astype(np.float32)
         image -= rgb_mean
         image = image.transpose(2, 0, 1)  # HWC to CHW
         image = np.expand_dims(image, axis=0)  # Add batch dimension (1, C, H, W)
+        
+        # Dynamically cast to the input type expected by the model (e.g., float16 for FP16 models)
+        input_type = self.ort_session.get_inputs()[0].type
+        if 'float16' in input_type:
+            return image.astype(np.float16)
         return image
 
     def infer(self, image_path):
         # Load and preprocess image
         original_image = cv2.imread(image_path)
+        if original_image is None:
+            return None
+            
+        # resized_image = cv2.resize(original_image, (640,360))
+        # img_height, img_width, _ = resized_image.shape
+        # image = self.preprocess_image(resized_image)
         img_height, img_width, _ = original_image.shape
         image = self.preprocess_image(original_image)
 
         # Run ONNX model inference
+        start = time.time()
         outputs = self.ort_session.run(None, {'input': image})
+        time_taken = time.time()-start
+        # print(f"Time taken to generate output: {time_taken}")
         loc, conf, landmarks = outputs[0].squeeze(0), outputs[1].squeeze(0), outputs[2].squeeze(0)
 
         # Generate anchor boxes
@@ -153,22 +178,26 @@ class FaceONNXInference:
 
         # Keep top-k detections
         detections, landmarks = detections[:self.post_nms_topk], landmarks[:self.post_nms_topk]
+        time_taken_to_putput = time.time()-start
 
         # Concatenate detections and landmarks
-        return np.concatenate((detections, landmarks), axis=1), original_image
+        return np.concatenate((detections, landmarks), axis=1), original_image, time_taken, time_taken_to_putput
 
-    def save_output_image(self, original_image, image_path):
-        im_name = os.path.splitext(os.path.basename(image_path))[0]
-        save_name = f"{im_name}_onnx_out.jpg"
+    def save_output_image(self, original_image, save_name):
+        # im_name = os.path.splitext(os.path.basename(image_path))[0]
+        # save_name = f"{self.cfg["name"]}_{im_name}_onnx_out.jpg"
         cv2.imwrite(save_name, original_image)
-        print(f"Image saved at '{save_name}'")
+        # print(f"Image saved at '{save_name}'")
 
-    def run_inference(self, image_path, save_image=False):
-        detections, original_image = self.infer(image_path)
+    def run_inference(self, image_path, output_folder, save_image=False):
+        detections, original_image, time_taken, tt_out = self.infer(image_path)
         draw_detections(original_image, detections, self.vis_threshold)
-
+        
         if save_image:
-            self.save_output_image(original_image, image_path)
+            output_filename = get_output_path(image_path, output_folder)
+            self.save_output_image(original_image, output_filename)
+
+        return detections, time_taken, tt_out
 
 
 if __name__ == '__main__':
@@ -185,4 +214,37 @@ if __name__ == '__main__':
         vis_threshold=args.vis_threshold
     )
 
-    retinaface_inference.run_inference(args.image_path, save_image=args.save_image)
+    count = 0
+    total_time = 0
+    total_tt_out = 0
+    detection_details = {}
+    if os.path.exists(args.image_path):
+        for dirs,_,files in os.walk(args.image_path):
+            for file in files:
+                if file.lower().endswith(('.jpg', '.png', '.jpeg')):
+                    file_path = os.path.join(dirs, file)
+                    detections, time_taken, tt_out = retinaface_inference.run_inference(file_path, args.output_path, save_image=args.save_image)
+                    detection_details[file] = {"detections": list(detections), "time_taken": time_taken}
+                    if time_taken is not None:
+                        count+=1
+                        total_time+=time_taken
+                        total_tt_out+=tt_out
+        
+        if args.save_image:
+            json_ready = {
+                k: {
+                    "total_det": len(v["detections"]),
+                    "time_to_predict": v["time_taken"],
+                    "detections": [arr.tolist() for arr in v["detections"]]
+                }
+                for k, v in detection_details.items()
+            }
+            json_path = os.path.join(args.output_path, "detections.json")
+            with open(json_path, 'w') as json_file:
+                json.dump(json_ready, json_file, indent=4)
+        print(f"Average inference time taken for processing {count} images through model: {total_time/count}")
+        print(f"Average inference time taken for processing final output for {count} images: {total_tt_out/count}")
+
+        # retinaface_inference.run_inference(args.image_path, save_image=args.save_image)
+    else:
+        print(f"Input path doesn't exists.")
