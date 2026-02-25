@@ -173,6 +173,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+.vscode/
 integrated_onnx/
 0000010-Hillary-Clinton*/
 0000058-Novak-Djokovic*/
@@ -180,13 +181,33 @@ min_face_resolution_test/
 output/
 profiling_output/
 test*/
+quantized_outputs/
+assets/
+data/
+layers/modules/
+models/
 
 *.html
 *.txt
 *17*.jpg
-detections_differences.json
+*.json
 generate_report.py
 reasons.md
-results.json
 retinaface_test_onnx_out.jpg
 test_retinaface_integrated_out.jpg
+pytorch_quantization.py
+box_utils.py
+datasets.py
+transform.py
+analyze_detections.py
+create_html.py
+detect.py
+evaluate_widerface.py
+onnx_export.py
+train.py
+verify_onnx_export.py
+webcam_inference.py
+
+
+!retinaface.onnx
+!retinaface_int8.onnx
